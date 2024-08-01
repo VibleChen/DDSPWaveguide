@@ -178,8 +178,8 @@ class DispersionFilter(ModelBlock):
         self.trainable = trainable
         if not trainable:
             self.stiffness = stiffness
-            self.a_coeff = torch.tensor([1, -stiffness])
             self.b_coeff = torch.tensor([1 - stiffness, 0])
+            self.a_coeff = torch.tensor([1, -stiffness])
 
     def LeftGoingWaves(self, left, right, **kwargs):
         if not self.trainable:
@@ -187,7 +187,7 @@ class DispersionFilter(ModelBlock):
         else:
             assert 'dispersion_params' in kwargs, "Dispersion params should be provided when trainable is True"
 
-            a_coeff, b_coeff = kwargs['dispersion_params']
+            b_coeff, a_coeff = kwargs['dispersion_params']
 
             return torchaudio.functional.lfilter(left, a_coeff, b_coeff)
 
@@ -196,7 +196,7 @@ class DispersionFilter(ModelBlock):
             return torchaudio.functional.lfilter(right, self.a_coeff, self.b_coeff)
         else:
             assert 'dispersion_params' in kwargs, "Dispersion params should be provided when trainable is True"
-            a_coeff, b_coeff = kwargs['dispersion_params']
+            b_coeff, a_coeff = kwargs['dispersion_params']
 
             return torchaudio.functional.lfilter(right, a_coeff, b_coeff)
 
@@ -228,9 +228,9 @@ class GuitarNuts(ModelBlock):
         left = delay(1, left)
         if self.trainable:
             assert 'nuts_params' in kwargs, "Nuts params should be provided when trainable is True"
-            a_coeff, b_coeff = kwargs['nuts_params']
+            b_coeff, a_coeff = kwargs['nuts_params']
         else:
-            a_coeff, b_coeff = None, None
+            b_coeff, a_coeff = None, None
 
         left = self.filter(left, a_coeff, b_coeff)
 
@@ -257,9 +257,9 @@ class GuitarBridge(ModelBlock):
         right = delay(1, right)
         if self.trainable:
             assert 'bridge_params' in kwargs, "Bridge params should be provided when trainable is True"
-            a_coeff, b_coeff = kwargs['bridge_params']
+            b_coeff, a_coeff = kwargs['bridge_params']
         else:
-            a_coeff, b_coeff = None, None
+            b_coeff, a_coeff = None, None
 
         right = self.filter(right, a_coeff, b_coeff)
 

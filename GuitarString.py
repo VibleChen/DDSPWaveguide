@@ -53,7 +53,7 @@ with{
         pluckposition (float): a float number between 0 and 1
         excitation (tensor): the excitation for initialize. It has to be the same length with output length
         """
-        
+
         nUp = length * pluckPosition
         nDown = length * (1 - pluckPosition)
 
@@ -70,7 +70,6 @@ with{
             left_signal.append(chain._rterminate(self.zeros, right_signal[i], **kwargs))
             left_signal[-1], right_signal[-1] = chain._vibrate(left_signal[-1], right_signal[-1], **kwargs)
 
-        # return torch.stack([sum(left_signal), sum(right_signal)])
         return sum(left_signal) + sum(right_signal)
 
 
@@ -82,17 +81,7 @@ if __name__ == "__main__":
 
     guitar = GuitarString(seconds=seconds, trainable=False)
 
-    bridge_params = torch.tensor([[1.0000, 0.1702], [-2.9752, 2.8045]])
-    nuts_params = torch.tensor([[1.0000, -0.3406], [0.7911, 0.4685]])
-    dispersion_params = torch.tensor([[1.0000, -0.6970], [-0.0565, -0.0092]])
-
-    output = guitar.forward(100.2,
-                            0.5506,
-                            excitation,
-                            bridge_params=bridge_params,
-                            nuts_params=nuts_params,
-                            dispersion_params=dispersion_params,
-                            )
+    output = guitar.forward(100.2, 0.5506, excitation)
 
     import matplotlib.pyplot as plt
 

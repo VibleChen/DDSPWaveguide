@@ -86,3 +86,26 @@ with{
             a_coeff, b_coeff = kwargs['a_coeff'], kwargs['b_coeff']
 
         return self.gain * torchaudio.functional.lfilter(x, a_coeff, b_coeff)
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    from Core import get_freq_response
+
+    bridge_filter = BridgeFilter(0.2, 0.7, trainable=False)
+    bridge_a_coeff = torch.tensor([1, 0, 0])
+    bridge_b_coeff = torch.tensor([bridge_filter.h1, bridge_filter.h0, bridge_filter.h1]) * bridge_filter.rho
+
+    ar1 = torch.abs(get_freq_response(bridge_b_coeff, bridge_a_coeff))
+
+    s = 0.5
+
+    dispersion_b_coeff = torch.tensor([1 - s, 0])
+    dispersion_a_coeff = torch.tensor([1, -s])
+
+    ar2 = torch.abs(get_freq_response(dispersion_b_coeff, dispersion_a_coeff))
+
+    plt.plot(ar1)
+    plt.plot(ar2)
+
+    plt.show()

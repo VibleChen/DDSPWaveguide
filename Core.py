@@ -1,6 +1,9 @@
 import math
 
+import torch
+
 from Constant import SR, SpeedOfSound
+from Losses import coeffs_norm
 
 
 def fac(d, n, k):
@@ -59,3 +62,69 @@ def s2l(s):
 
 def f2l(f):
     return SpeedOfSound / f
+
+
+def get_complex(reals, imgs):
+    complex = torch.complex(reals, imgs)
+    complex_conj = torch.conj(complex)
+
+    return torch.cat((complex, complex_conj))
+
+
+def get_coeffs_from_roots(roots):
+    n = roots.size(0)
+    coeffs = torch.zeros(n + 1, dtype=roots.dtype, device=roots.device)
+    coeffs[0] = 1.0  # 最高次项系数设为 1
+    for root in roots:
+        # 创建新的多项式系数数组
+        new_coeffs = torch.zeros_like(coeffs)
+        # 更新多项式系数
+        for i in range(n, 0, -1):
+            new_coeffs[i] += coeffs[i - 1]
+            new_coeffs[i - 1] -= root * coeffs[i - 1]
+        coeffs = new_coeffs
+    return torch.flip(coeffs.real, [0])
+
+
+def get_freq_response(b, a, k=512):
+    w = torch.linspace(0, torch.pi, k)
+    jw = 1j * w
+    num = sum(b[k] * torch.exp(-jw * k) for k in range(len(b)))
+    den = sum(a[k] * torch.exp(-jw * k) for k in range(len(a)))
+    H = num / den
+
+    return H
+
+
+def get_reals_and_imgs(params):
+    reals = params[0]
+    imgs = params[1]
+
+    return reals, imgs
+
+
+def get_trained_params(a_real, a_img, b_real, b_img):
+    poles_complex = get_complex(a_real, a_img)
+    a_coeffs = get_coeffs_from_roots(poles_complex)
+
+    zeros_complex = get_complex(b_real, b_img)
+    b_coeffs = get_coeffs_from_roots(zeros_complex)
+
+    b_coeffs = coeffs_norm(b_coeffs, a_coeffs)
+
+    filter_params = torch.stack([b_coeffs, a_coeffs])
+
+    return filter_params
+
+
+def get_filter_params(latent):
+    nut_params = latent[0]
+    bridge_params = latent[1]
+    dispersion_params = latent[2]
+
+    return nut_params, bridge_params, dispersion_params
+
+
+if __name__ == "__main__":
+    a_real = torch.tensor([0.1, 0.4, 0.2])
+    a_imag = torch.tensor([0.6, 0.3, 0.2])
