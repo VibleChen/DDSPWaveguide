@@ -48,6 +48,12 @@ with{
         return chain
 
     def forward(self, length, pluckPosition, excitation, **kwargs):
+        """
+        length (float or int): the delay line in samples
+        pluckposition (float): a float number between 0 and 1
+        excitation (tensor): the excitation for initialize. It has to be the same length with output length
+        """
+        
         nUp = length * pluckPosition
         nDown = length * (1 - pluckPosition)
 
@@ -59,7 +65,7 @@ with{
         left_signal = [left]
         right_signal = [right]
 
-        for i in range(len(excitation) // length):
+        for i in range(len(excitation) // int(length)):
             right_signal.append(chain._lterminate(left_signal[i], self.zeros, **kwargs))
             left_signal.append(chain._rterminate(self.zeros, right_signal[i], **kwargs))
             left_signal[-1], right_signal[-1] = chain._vibrate(left_signal[-1], right_signal[-1], **kwargs)
@@ -80,7 +86,7 @@ if __name__ == "__main__":
     nuts_params = torch.tensor([[1.0000, -0.3406], [0.7911, 0.4685]])
     dispersion_params = torch.tensor([[1.0000, -0.6970], [-0.0565, -0.0092]])
 
-    output = guitar.forward(100,
+    output = guitar.forward(100.2,
                             0.5506,
                             excitation,
                             bridge_params=bridge_params,
