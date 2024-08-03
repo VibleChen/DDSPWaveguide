@@ -3,6 +3,12 @@ from Losses import StabilityLoss
 
 
 def get_pretrain_loss(params, penalty=0.1):
+    """
+    Get the pretrain loss, make sure the filter is stable and lossy before feed into the waveguide model
+    :param params: the encoder output
+    :param penalty: penalty for the loss
+    :return: the loss value for the filter, which can reach 0
+    """
     nut_params, bridge_params, dispersion_params = get_filter_params(params)
 
     nut_a_reals, nut_a_imgs, nut_b_reals, nut_b_imgs = get_reals_and_imgs(nut_params)
@@ -30,15 +36,14 @@ def train(model, trainloader, criterion, optimizer, num_epochs, device):
 
             optimizer.zero_grad()
 
-            latent = model(inputs, strategy='encoder')
-            params = get_filter_params(latent)
+            params = model(inputs, strategy='encoder')
             loss = get_pretrain_loss(params)
 
             if loss.item() != 0.0:
                 loss.backward()
                 optimizer.step()
             else:
-                output = model(latent, strategy='decoder')
+                output = model(params, strategy='decoder')
                 loss = criterion(output, inputs)
                 loss.backward()
                 optimizer.step()

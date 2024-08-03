@@ -118,13 +118,8 @@ def get_trained_params(a_real, a_img, b_real, b_img):
 
 
 def get_filter_params(latent):
-    nut_params = latent[0]
-    bridge_params = latent[1]
-    dispersion_params = latent[2]
+    nut_params = latent[:, 0]
+    bridge_params = latent[:, 1]
+    dispersion_params = latent[:, 2]
 
     return nut_params, bridge_params, dispersion_params
-
-
-if __name__ == "__main__":
-    a_real = torch.tensor([0.1, 0.4, 0.2])
-    a_imag = torch.tensor([0.6, 0.3, 0.2])

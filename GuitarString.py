@@ -23,13 +23,14 @@ with{
     """
 
     def __init__(self,
+                 batch_size=1,
                  trainable=False,
                  seconds=1.0,
                  ):
         super().__init__()
 
         self.trainable = trainable
-        self.zeros = torch.zeros(int(seconds * SR)).to(device)
+        self.zeros = torch.zeros((batch_size, int(seconds * SR)), dtype=torch.int64).to(device)
 
         self.nuts = GuitarNuts(trainable=trainable)
         self.bridge = GuitarBridge(trainable=trainable)
@@ -64,26 +65,34 @@ with{
 
         left_signal = [left]
         right_signal = [right]
-
-        for i in range(len(excitation) // int(length)):
+        for i in range(excitation.size(-1) // int(length.min())):
             right_signal.append(chain._lterminate(left_signal[i], self.zeros, **kwargs))
             left_signal.append(chain._rterminate(self.zeros, right_signal[i], **kwargs))
             left_signal[-1], right_signal[-1] = chain._vibrate(left_signal[-1], right_signal[-1], **kwargs)
 
-        return sum(left_signal) + sum(right_signal)
+        return torch.sum(torch.stack(left_signal, dim=0), dim=0), torch.sum(torch.stack(right_signal, dim=0), dim=0)
 
 
 if __name__ == "__main__":
-    seconds = 2
-
-    excitation = torch.zeros(seconds * SR)
-    excitation[0] = 0.5
-
-    guitar = GuitarString(seconds=seconds, trainable=False)
-
-    output = guitar.forward(100.2, 0.5506, excitation)
-
     import matplotlib.pyplot as plt
 
-    plt.plot(output.cpu().detach().numpy())
+    seconds = 2
+    batch_size = 4
+    excitation = torch.zeros((batch_size, seconds * SR), dtype=torch.float32).to(device)
+    excitation[0][0] = 0.5
+    excitation[1][3] = 0.5
+    excitation[2][4] = 0.5
+    excitation[3][5] = 0.5
+
+    guitar = GuitarString(batch_size=batch_size, seconds=seconds, trainable=False)
+
+    left, right = guitar.forward(torch.tensor([100.4, 50.3, 40.2, 80.2]), torch.tensor([0.42, 0.42, 0.22, 0.42]),
+                                 excitation)
+    print(left.shape)
+
+    plt.plot(left[0].cpu().detach().numpy())
+    plt.plot(left[1].cpu().detach().numpy())
+    plt.plot(left[2].cpu().detach().numpy())
+    plt.plot(left[3].cpu().detach().numpy())
     plt.show()
+

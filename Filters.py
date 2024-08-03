@@ -4,7 +4,7 @@ import torch.nn as nn
 import torchaudio
 
 from Constant import SR
-from Delay import delay
+from Delay import delay_batched
 
 
 def NonIdealFilter(signal):
@@ -39,8 +39,10 @@ class BridgeFilter(nn.Module):
 
     def forward(self, x, a_coeff=None, b_coeff=None):
         if not self.trainable:
-            h1_part = self.h1 * (x + delay(2, x))
-            h0_part = self.h0 * delay(1, x)
+            batch_size = x.shape[0]
+            two = torch.ones(batch_size, dtype=torch.int64) * 2
+            h1_part = self.h1 * (x + delay_batched(two, x))
+            h0_part = self.h0 * delay_batched(torch.ones(batch_size, dtype=torch.int64), x)
             return - self.rho * (h0_part + h1_part)
         else:
             assert a_coeff is not None and b_coeff is not None, "a_coeff and b_coeff should be provided when trainable is True"
@@ -86,26 +88,3 @@ with{
             a_coeff, b_coeff = kwargs['a_coeff'], kwargs['b_coeff']
 
         return self.gain * torchaudio.functional.lfilter(x, a_coeff, b_coeff)
-
-
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    from Core import get_freq_response
-
-    bridge_filter = BridgeFilter(0.2, 0.7, trainable=False)
-    bridge_a_coeff = torch.tensor([1, 0, 0])
-    bridge_b_coeff = torch.tensor([bridge_filter.h1, bridge_filter.h0, bridge_filter.h1]) * bridge_filter.rho
-
-    ar1 = torch.abs(get_freq_response(bridge_b_coeff, bridge_a_coeff))
-
-    s = 0.5
-
-    dispersion_b_coeff = torch.tensor([1 - s, 0])
-    dispersion_a_coeff = torch.tensor([1, -s])
-
-    ar2 = torch.abs(get_freq_response(dispersion_b_coeff, dispersion_a_coeff))
-
-    plt.plot(ar1)
-    plt.plot(ar2)
-
-    plt.show()

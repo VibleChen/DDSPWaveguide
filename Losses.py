@@ -4,6 +4,7 @@ import torchaudio
 from matplotlib import pyplot as plt
 
 from Core import get_complex, get_coeffs_from_roots, get_freq_response
+from GuitarString import GuitarString
 
 
 class StabilityLoss(nn.Module):
@@ -33,10 +34,7 @@ def coeffs_norm(b_coeffs, a_coffs):
 
 if __name__ == "__main__":
 
-    from GuitarString import GuitarString
-
     order = 2
-    k = 1
 
     nut_a_reals = torch.randn(order, requires_grad=True)
     nut_a_imgs = torch.randn(order, requires_grad=True)
@@ -63,18 +61,18 @@ if __name__ == "__main__":
         loss = stability_loss(nut_a_reals, nut_a_imgs) + stability_loss(bridge_a_reals, bridge_a_imgs) + stability_loss(
             dispersion_a_reals, dispersion_a_imgs)
 
-        print(loss)
         loss.backward()
         optim.step()
+        if loss.item() == 0:
+            break
 
     nut_poles_complex = get_complex(nut_a_reals, nut_a_imgs)
     nut_a_coeffs = get_coeffs_from_roots(nut_poles_complex)
 
-
     nut_b_zeros_complex = get_complex(nut_b_reals, nut_b_imgs)
     nut_b_coeffs = get_coeffs_from_roots(nut_b_zeros_complex)
 
-    nut_b_coeffs = coeffs_norm(nut_b_coeffs, nut_a_coeffs) * k
+    nut_b_coeffs = coeffs_norm(nut_b_coeffs, nut_a_coeffs)
     print(nut_b_coeffs)
     print(nut_a_coeffs)
 
@@ -84,11 +82,10 @@ if __name__ == "__main__":
     bridge_poles_complex = get_complex(bridge_a_reals, bridge_a_imgs)
     bridge_a_coeffs = get_coeffs_from_roots(bridge_poles_complex)
 
-
     bridge_b_zeros_complex = get_complex(bridge_b_reals, bridge_b_imgs)
     bridge_b_coeffs = get_coeffs_from_roots(bridge_b_zeros_complex)
 
-    bridge_b_coeffs = coeffs_norm(bridge_b_coeffs, bridge_a_coeffs) * k
+    bridge_b_coeffs = coeffs_norm(bridge_b_coeffs, bridge_a_coeffs)
     print(bridge_b_coeffs)
     print(bridge_a_coeffs)
 
@@ -98,11 +95,10 @@ if __name__ == "__main__":
     dispersion_poles_complex = get_complex(dispersion_a_reals, dispersion_a_imgs)
     dispersion_a_coeffs = get_coeffs_from_roots(dispersion_poles_complex)
 
-
     dispersion_b_zeros_complex = get_complex(dispersion_b_reals, dispersion_b_imgs)
     dispersion_b_coeffs = get_coeffs_from_roots(dispersion_b_zeros_complex)
 
-    dispersion_b_coeffs = coeffs_norm(dispersion_b_coeffs, dispersion_a_coeffs) * k
+    dispersion_b_coeffs = coeffs_norm(dispersion_b_coeffs, dispersion_a_coeffs)
     print(dispersion_b_coeffs)
     print(dispersion_a_coeffs)
 
@@ -110,7 +106,7 @@ if __name__ == "__main__":
     plt.plot(ar_dispersion.detach().numpy())
     plt.show()
 
-    guitar = GuitarString(seconds=2, trainable=True)
+    guitar = GuitarString(seconds=2, trainable=False)
 
     excitation = torch.zeros(2 * 16000)
     excitation[0] = 0.5
@@ -119,13 +115,15 @@ if __name__ == "__main__":
     nuts_params = torch.stack([nut_b_coeffs, nut_a_coeffs])
     dispersion_params = torch.stack([dispersion_b_coeffs, dispersion_a_coeffs])
 
-    output = guitar.forward(20.2,
-                            0.5506,
+    output = guitar.forward(30.2,
+                            0.5,
                             excitation,
                             bridge_params=bridge_params,
-                            nuts_params=nuts_params,
-                            dispersion_params=dispersion_params,
+                            nuts_params=bridge_params,
+                            dispersion_params=bridge_params,
                             )
 
     plt.plot(output.cpu().detach().numpy())
     plt.show()
+
+    torchaudio.save("output.wav", output.cpu().detach().unsqueeze(0), 16000)
