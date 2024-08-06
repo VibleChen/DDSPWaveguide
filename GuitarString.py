@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from Constant import SR, device
-from ModelBlock import _Chain, GuitarNuts, GuitarBridge, StringSegment, DispersionFilter, In
+from Modules import _Chain, GuitarNuts, GuitarBridge, StringSegment, DispersionFilter, In
 
 
 class GuitarString(nn.Module):
@@ -30,7 +30,7 @@ with{
         super().__init__()
 
         self.trainable = trainable
-        self.zeros = torch.zeros((batch_size, int(seconds * SR)), dtype=torch.int64).to(device)
+        self.zeros = torch.zeros((batch_size, int(seconds * SR)), dtype=torch.float32).to(device)
 
         self.nuts = GuitarNuts(trainable=trainable)
         self.bridge = GuitarBridge(trainable=trainable)
@@ -71,28 +71,3 @@ with{
             left_signal[-1], right_signal[-1] = chain._vibrate(left_signal[-1], right_signal[-1], **kwargs)
 
         return torch.sum(torch.stack(left_signal, dim=0), dim=0), torch.sum(torch.stack(right_signal, dim=0), dim=0)
-
-
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-
-    seconds = 2
-    batch_size = 4
-    excitation = torch.zeros((batch_size, seconds * SR), dtype=torch.float32).to(device)
-    excitation[0][0] = 0.5
-    excitation[1][3] = 0.5
-    excitation[2][4] = 0.5
-    excitation[3][5] = 0.5
-
-    guitar = GuitarString(batch_size=batch_size, seconds=seconds, trainable=False)
-
-    left, right = guitar.forward(torch.tensor([100.4, 50.3, 40.2, 80.2]), torch.tensor([0.42, 0.42, 0.22, 0.42]),
-                                 excitation)
-    print(left.shape)
-
-    plt.plot(left[0].cpu().detach().numpy())
-    plt.plot(left[1].cpu().detach().numpy())
-    plt.plot(left[2].cpu().detach().numpy())
-    plt.plot(left[3].cpu().detach().numpy())
-    plt.show()
-

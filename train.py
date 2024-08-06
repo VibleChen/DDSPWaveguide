@@ -1,29 +1,19 @@
-from Core import get_reals_and_imgs, get_filter_params
-from Losses import StabilityLoss
+import torch
+import torchaudio
+from torch.utils.data import DataLoader
+
+from Dataset import GuitarStringDataset
+from Losses import PretrainLoss
+from Model import DDSPEncoderDecoderModel
 
 
-def get_pretrain_loss(params, penalty=0.1):
-    """
-    Get the pretrain loss, make sure the filter is stable and lossy before feed into the waveguide model
-    :param params: the encoder output
-    :param penalty: penalty for the loss
-    :return: the loss value for the filter, which can reach 0
-    """
-    nut_params, bridge_params, dispersion_params = get_filter_params(params)
-
-    nut_a_reals, nut_a_imgs, nut_b_reals, nut_b_imgs = get_reals_and_imgs(nut_params)
-    bridge_a_reals, bridge_a_imgs, bridge_b_reals, bridge_b_imgs = get_reals_and_imgs(bridge_params)
-    dispersion_a_reals, dispersion_a_imgs, dispersion_b_reals, dispersion_b_imgs = get_reals_and_imgs(dispersion_params)
-
-    stability_loss = StabilityLoss(penalty)
-
-    loss = stability_loss(nut_a_reals, nut_a_imgs) + stability_loss(bridge_a_reals, bridge_a_imgs) + stability_loss(
-        dispersion_a_reals, dispersion_a_imgs)
+def get_pretrain_loss(length, pluckposition, filter_params, criterion):
+    loss = criterion(length, pluckposition, filter_params)
 
     return loss
 
 
-def train(model, trainloader, criterion, optimizer, num_epochs, device):
+def train(model, trainloader, pretrain_criterion, train_criterion, optimizer, num_epochs, device):
     model.to(device)
 
     for epoch in range(num_epochs):
@@ -36,19 +26,35 @@ def train(model, trainloader, criterion, optimizer, num_epochs, device):
 
             optimizer.zero_grad()
 
-            params = model(inputs, strategy='encoder')
-            loss = get_pretrain_loss(params)
-
+            length, pluckposition, filter_params = model(inputs, strategy='encoder')
+            loss = get_pretrain_loss(length, pluckposition, filter_params, pretrain_criterion)
+            print(f"pretrain loss: {loss.item()}")
             if loss.item() != 0.0:
                 loss.backward()
                 optimizer.step()
             else:
-                output = model(params, strategy='decoder')
-                loss = criterion(output, inputs)
+                left, right = model(length=length, pluckposition=pluckposition, filter_params=filter_params,
+                                    strategy='decoder')
+                loss = train_criterion(left, inputs.squeeze(0))
+                print(f"train loss: {loss.item()}")
                 loss.backward()
                 optimizer.step()
+        #
+        #     running_loss += loss.item()
+        #
+        # epoch_loss = running_loss / len(trainloader.dataset)
+        # print(f'Epoch {epoch + 1}/{num_epochs}, Training Loss: {epoch_loss:.4f}')
 
-            running_loss += loss.item()
 
-        epoch_loss = running_loss / len(trainloader.dataset)
-        print(f'Epoch {epoch + 1}/{num_epochs}, Training Loss: {epoch_loss:.4f}')
+if __name__ == "__main__":
+    audio, sr = torchaudio.load("guitar.wav")
+    traindataset = GuitarStringDataset(audio.unsqueeze(0))
+    traindataloader = DataLoader(traindataset, batch_size=1, shuffle=True)
+
+    model = DDSPEncoderDecoderModel(batch_size=1, C=8, D=3, n_filter_params=10, signal_length=64000, trainable=True)
+    pretrain_criterion = PretrainLoss(0.1, 4)
+    train_criterion = torch.nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    device = 'cpu'
+
+    train(model, traindataloader, pretrain_criterion, train_criterion, optimizer, 1000, device)

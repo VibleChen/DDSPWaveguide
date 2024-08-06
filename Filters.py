@@ -88,3 +88,10 @@ with{
             a_coeff, b_coeff = kwargs['a_coeff'], kwargs['b_coeff']
 
         return self.gain * torchaudio.functional.lfilter(x, a_coeff, b_coeff)
+
+if __name__ =="__main__":
+    a_coeff = torch.rand([7])
+    b_coeff = torch.rand([7])
+    print (b_coeff.dtype)
+    x = torch.rand(1,64000)
+    torchaudio.functional.lfilter(x,a_coeff,b_coeff)
