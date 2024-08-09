@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from Constant import SR
+from Constant import SR,device
 from Core import f2l
 
 
@@ -97,7 +97,7 @@ class PitchExtractor(nn.Module):
 
     def forward(self, signals: torch.Tensor) -> torch.Tensor:
         # Convert the signal to numpy format as crepe only accepts numpy arrays
-        signals = signals.numpy()
+        signals = signals.cpu().numpy()
         batch_size = signals.shape[0]
 
         f0_batch = []
@@ -118,7 +118,7 @@ class PitchExtractor(nn.Module):
         f0 = torch.tensor(f0_batch, dtype=torch.float32)
 
         # f0.shape = [Batch_size, Timeframe]
-        return f0
+        return f0.to(device)
 
 
 class LatentEncoder(nn.Module):
@@ -151,15 +151,3 @@ class LatentEncoder(nn.Module):
         pluckposition = latent[:, 0]
         filter_params = latent[:, 1:]
         return length, F.sigmoid(pluckposition), filter_params
-
-
-if __name__ == "__main__":
-    encoder = LatentEncoder(64, 3, 5, 64000)
-    x = torch.randn(1, 1, 64000)
-    length, pluckposition, filter_params = encoder(x)
-
-    # latent should contain: nut + bridge + dispersion shape is [batch, 3, 4
-
-    # filter has a_real, a_imag, b_real, b_imag shape is [batch, 3, 4, order]
-    # pluckposition is [batch, 3, 1]
-    # plucklength is [batch, 3, 1]

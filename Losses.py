@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import torchaudio.transforms as T
 
+from Constant import device
 from Core import get_filter_params, get_reals_and_imgs
 
 
@@ -29,18 +32,19 @@ class TrainableLoss(nn.Module):
     def __init__(self, langrange_n):
         super().__init__()
         self.langrange_n = langrange_n
+        self.eps = 1e-6
 
     def forward(self, length, pluckposition):
         nUp = length * pluckposition
         nDown = length * (1 - pluckposition)
         o = (self.langrange_n - 1.00001) / 2
-        loss = torch.relu(o - nUp) + torch.relu(o - nDown)
+        loss = torch.relu(o - nUp + self.eps) + torch.relu(o - nDown + self.eps)
         # print(f'nUp: {nUp}, nDown: {nDown}, o: {o}, Loss: {loss}')
         return loss
 
 
 class PretrainLoss(nn.Module):
-    def __init__(self, lambda_penalty, langrange_n):
+    def __init__(self, lambda_penalty=0.1, langrange_n=4):
         super().__init__()
         self.stability_loss = StabilityLoss(lambda_penalty)
         self.trainable_loss = TrainableLoss(langrange_n)
@@ -58,98 +62,114 @@ class PretrainLoss(nn.Module):
 
         return loss
 
-# if __name__ == "__main__":
-#
-#     # order = 2
-#     #
-#     # nut_a_reals = torch.randn(order, requires_grad=True)
-#     # nut_a_imgs = torch.randn(order, requires_grad=True)
-#     # nut_b_reals = torch.randn(order, requires_grad=True)
-#     # nut_b_imgs = torch.randn(order, requires_grad=True)
-#     #
-#     # bridge_a_reals = torch.randn(order, requires_grad=True)
-#     # bridge_a_imgs = torch.randn(order, requires_grad=True)
-#     # bridge_b_reals = torch.randn(order, requires_grad=True)
-#     # bridge_b_imgs = torch.randn(order, requires_grad=True)
-#     #
-#     # dispersion_a_reals = torch.randn(order, requires_grad=True)
-#     # dispersion_a_imgs = torch.randn(order, requires_grad=True)
-#     # dispersion_b_reals = torch.randn(order, requires_grad=True)
-#     # dispersion_b_imgs = torch.randn(order, requires_grad=True)
-#     #
-#     # stability_loss = StabilityLoss(0.1)
-#     #
-#     # optim = torch.optim.Adam(
-#     #     [nut_a_reals, nut_a_imgs, bridge_a_reals, bridge_a_imgs, dispersion_a_reals, dispersion_a_imgs], lr=0.01)
-#     #
-#     # for i in range(300):
-#     #     optim.zero_grad()
-#     #     loss = stability_loss(nut_a_reals, nut_a_imgs) + stability_loss(bridge_a_reals, bridge_a_imgs) + stability_loss(
-#     #         dispersion_a_reals, dispersion_a_imgs)
-#     #
-#     #     loss.backward()
-#     #     optim.step()
-#     #     if loss.item() == 0:
-#     #         break
-#     #
-#     # nut_poles_complex = get_complex(nut_a_reals, nut_a_imgs)
-#     # nut_a_coeffs = get_coeffs_from_roots(nut_poles_complex)
-#     #
-#     # nut_b_zeros_complex = get_complex(nut_b_reals, nut_b_imgs)
-#     # nut_b_coeffs = get_coeffs_from_roots(nut_b_zeros_complex)
-#     #
-#     # nut_b_coeffs = coeffs_norm(nut_b_coeffs, nut_a_coeffs)
-#     # print(nut_b_coeffs)
-#     # print(nut_a_coeffs)
-#     #
-#     # ar_nut = get_freq_response(nut_b_coeffs, nut_a_coeffs).abs()
-#     # plt.plot(ar_nut.detach().numpy())
-#     #
-#     # bridge_poles_complex = get_complex(bridge_a_reals, bridge_a_imgs)
-#     # bridge_a_coeffs = get_coeffs_from_roots(bridge_poles_complex)
-#     #
-#     # bridge_b_zeros_complex = get_complex(bridge_b_reals, bridge_b_imgs)
-#     # bridge_b_coeffs = get_coeffs_from_roots(bridge_b_zeros_complex)
-#     #
-#     # bridge_b_coeffs = coeffs_norm(bridge_b_coeffs, bridge_a_coeffs)
-#     # print(bridge_b_coeffs)
-#     # print(bridge_a_coeffs)
-#     #
-#     # ar_bridge = get_freq_response(bridge_b_coeffs, bridge_a_coeffs).abs()
-#     # plt.plot(ar_bridge.detach().numpy())
-#     #
-#     # dispersion_poles_complex = get_complex(dispersion_a_reals, dispersion_a_imgs)
-#     # dispersion_a_coeffs = get_coeffs_from_roots(dispersion_poles_complex)
-#     #
-#     # dispersion_b_zeros_complex = get_complex(dispersion_b_reals, dispersion_b_imgs)
-#     # dispersion_b_coeffs = get_coeffs_from_roots(dispersion_b_zeros_complex)
-#     #
-#     # dispersion_b_coeffs = coeffs_norm(dispersion_b_coeffs, dispersion_a_coeffs)
-#     # print(dispersion_b_coeffs)
-#     # print(dispersion_a_coeffs)
-#     #
-#     # ar_dispersion = get_freq_response(dispersion_b_coeffs, dispersion_a_coeffs).abs()
-#     # plt.plot(ar_dispersion.detach().numpy())
-#     # plt.show()
-#     #
-#     # guitar = GuitarString(seconds=2, trainable=False)
-#     #
-#     # excitation = torch.zeros(2 * 16000)
-#     # excitation[0] = 0.5
-#     #
-#     # bridge_params = torch.stack([bridge_b_coeffs, bridge_a_coeffs])
-#     # nuts_params = torch.stack([nut_b_coeffs, nut_a_coeffs])
-#     # dispersion_params = torch.stack([dispersion_b_coeffs, dispersion_a_coeffs])
-#     #
-#     # output = guitar.forward(30.2,
-#     #                         0.5,
-#     #                         excitation,
-#     #                         bridge_params=bridge_params,
-#     #                         nuts_params=bridge_params,
-#     #                         dispersion_params=bridge_params,
-#     #                         )
-#     #
-#     # plt.plot(output.cpu().detach().numpy())
-#     # plt.show()
-#     #
-#     # torchaudio.save("output.wav", output.cpu().detach().unsqueeze(0), 16000)
+
+class MultiSpectralLoss(nn.Module):
+    """Multi-Scale spectrogram loss.
+
+      This loss is the bread-and-butter of comparing two audio signals. It offers
+      a range of options to compare spectrograms, many of which are redunant, but
+      emphasize different aspects of the signal. By far, the most common comparisons
+      are magnitudes (mag_weight) and log magnitudes (logmag_weight).
+
+      Shape:
+        - Input: generated and target audio signal, with both shape (Batch_size, Sample_length)
+        - Output: computed loss, a scalar value
+
+      Args:
+        fft_sizes (tuple): A tuple of FFT sizes to use for the STFT. Default is (2048, 1024, 512, 256, 128, 64).
+        loss_type (str): The type of loss to use ('L1', 'L2', or 'COSINE'). Default is 'L1'.
+        mag_weight (float): Weight for the magnitude loss. Default is 1.0.
+        delta_time_weight (float): Weight for the delta time loss. Default is 0.0.
+        delta_freq_weight (float): Weight for the delta frequency loss. Default is 0.0.
+        cumsum_freq_weight (float): Weight for the cumulative sum frequency loss. Default is 0.0.
+        logmag_weight (float): Weight for the log magnitude loss. Default is 0.0.
+        loudness_weight (float): Weight for the loudness loss. Default is 0.0.
+        """
+
+    def __init__(self,
+                 fft_sizes=(2048, 1024, 512, 256, 128, 64),
+                 loss_type='L1',
+                 mag_weight=1.0,
+                 delta_time_weight=0.0,
+                 delta_freq_weight=0.0,
+                 cumsum_freq_weight=0.0,
+                 logmag_weight=0.0,
+                 loudness_weight=0.0,
+                 ):
+        super().__init__()
+        self.fft_sizes = fft_sizes
+        self.loss_type = loss_type
+        self.mag_weight = mag_weight
+        self.delta_time_weight = delta_time_weight
+        self.delta_freq_weight = delta_freq_weight
+        self.cumsum_freq_weight = cumsum_freq_weight
+        self.logmag_weight = logmag_weight
+        self.loudness_weight = loudness_weight
+        self.cosine_similarity = nn.CosineSimilarity(dim=-1, eps=1e-6)
+
+    def forward(self, target_audio, audio):
+        loss = 0.0
+
+        for size in self.fft_sizes:
+            target_mag = T.Spectrogram(n_fft=size).to(device)(target_audio)
+            value_mag = T.Spectrogram(n_fft=size).to(device)(audio)
+
+            if self.mag_weight > 0:
+                if self.loss_type == 'L1':
+                    loss += self.mag_weight * F.l1_loss(target_mag, value_mag, reduction='mean')
+                elif self.loss_type == 'L2':
+                    loss += self.mag_weight * F.mse_loss(target_mag, value_mag, reduction='mean')
+                elif self.loss_type == 'COSINE':
+                    loss += self.mag_weight * (1 - self.cosine_similarity(target_mag, value_mag).mean())
+
+            if self.delta_time_weight > 0:
+                target = torch.diff(target_mag, dim=1)
+                value = torch.diff(value_mag, dim=1)
+                if self.loss_type == 'L1':
+                    loss += self.delta_time_weight * F.l1_loss(target, value, reduction='mean')
+                elif self.loss_type == 'L2':
+                    loss += self.delta_time_weight * F.mse_loss(target, value, reduction='mean')
+                elif self.loss_type == 'COSINE':
+                    loss += self.mag_weight * (1 - self.cosine_similarity(target, value).mean())
+
+            if self.delta_freq_weight > 0:
+                target = torch.diff(target_mag, dim=2)
+                value = torch.diff(value_mag, dim=2)
+                if self.loss_type == 'L1':
+                    loss += self.delta_freq_weight * F.l1_loss(target, value, reduction='mean')
+                elif self.loss_type == 'L2':
+                    loss += self.delta_freq_weight * F.mse_loss(target, value, reduction='mean')
+                elif self.loss_type == 'COSINE':
+                    loss += self.mag_weight * (1 - self.cosine_similarity(target, value).mean())
+
+            if self.cumsum_freq_weight > 0:
+                target = torch.cumsum(target_mag, dim=2)
+                value = torch.cumsum(value_mag, dim=2)
+                if self.loss_type == 'L1':
+                    loss += self.cumsum_freq_weight * F.l1_loss(target, value, reduction='mean')
+                elif self.loss_type == 'L2':
+                    loss += self.cumsum_freq_weight * F.mse_loss(target, value, reduction='mean')
+                elif self.loss_type == 'COSINE':
+                    loss += self.mag_weight * (1 - self.cosine_similarity(target, value).mean())
+
+            if self.logmag_weight > 0:
+                target = torch.log(target_mag)
+                value = torch.log(value_mag)
+                if self.loss_type == 'L1':
+                    loss += self.logmag_weight * F.l1_loss(target, value, reduction='mean')
+                elif self.loss_type == 'L2':
+                    loss += self.logmag_weight * F.mse_loss(target, value, reduction='mean')
+                elif self.loss_type == 'COSINE':
+                    loss += self.mag_weight * (1 - self.cosine_similarity(target, value).mean())
+
+        if self.loudness_weight > 0:
+            target = T.AmplitudeToDB()(target_audio)
+            value = T.AmplitudeToDB()(audio)
+            if self.loss_type == 'L1':
+                loss += self.loudness_weight * F.l1_loss(target, value, reduction='mean')
+            elif self.loss_type == 'L2':
+                loss += self.loudness_weight * F.mse_loss(target, value, reduction='mean')
+            elif self.loss_type == 'COSINE':
+                loss += self.mag_weight * (1 - self.cosine_similarity(target, value).mean())
+
+        return loss

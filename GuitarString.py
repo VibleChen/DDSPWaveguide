@@ -30,8 +30,8 @@ with{
         super().__init__()
 
         self.trainable = trainable
-        self.zeros = torch.zeros((batch_size, int(seconds * SR)), dtype=torch.float32).to(device)
-
+        # self.zeros = torch.zeros((batch_size, int(seconds * SR)), dtype=torch.float32).to(device)
+        self.zeros = torch.zeros(int(seconds * SR), dtype=torch.float).to(device)
         self.nuts = GuitarNuts(trainable=trainable)
         self.bridge = GuitarBridge(trainable=trainable)
         self.dispersionfilter = DispersionFilter(trainable=trainable)
@@ -63,11 +63,17 @@ with{
         # initialize the left and right signals
         left, right = chain._start(self.zeros, self.zeros, **kwargs)
 
-        left_signal = [left]
-        right_signal = [right]
-        for i in range(excitation.size(-1) // int(length.min())):
-            right_signal.append(chain._lterminate(left_signal[i], self.zeros, **kwargs))
-            left_signal.append(chain._rterminate(self.zeros, right_signal[i], **kwargs))
-            left_signal[-1], right_signal[-1] = chain._vibrate(left_signal[-1], right_signal[-1], **kwargs)
+        n_loops = excitation.size(-1) // int(length.min())
 
-        return torch.sum(torch.stack(left_signal, dim=0), dim=0), torch.sum(torch.stack(right_signal, dim=0), dim=0)
+        left_signal = torch.zeros((n_loops + 1, *left.shape), dtype=left.dtype, device=left.device)
+        right_signal = torch.zeros((n_loops + 1, *right.shape), dtype=right.dtype, device=right.device)
+
+        left_signal[0] = left
+        right_signal[0] = right
+
+        for i in range(n_loops):
+            right_signal[i + 1] = chain._lterminate(left_signal[i], self.zeros, **kwargs)
+            left_signal[i + 1] = chain._rterminate(self.zeros, right_signal[i], **kwargs)
+            left_signal[i + 1], right_signal[i + 1] = chain._vibrate(left_signal[i + 1], right_signal[i + 1], **kwargs)
+
+        return torch.sum(left_signal, dim=0), torch.sum(right_signal, dim=0)

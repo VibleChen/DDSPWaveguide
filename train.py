@@ -3,7 +3,7 @@ import torchaudio
 from torch.utils.data import DataLoader
 
 from Dataset import GuitarStringDataset
-from Losses import PretrainLoss
+from Losses import PretrainLoss, MultiSpectralLoss
 from Model import DDSPEncoderDecoderModel
 
 
@@ -35,7 +35,8 @@ def train(model, trainloader, pretrain_criterion, train_criterion, optimizer, nu
             else:
                 left, right = model(length=length, pluckposition=pluckposition, filter_params=filter_params,
                                     strategy='decoder')
-                loss = train_criterion(left, inputs.squeeze(0))
+                output = left + right
+                loss = train_criterion(output.view(-1), inputs.view(-1))
                 print(f"train loss: {loss.item()}")
                 loss.backward()
                 optimizer.step()
@@ -47,13 +48,15 @@ def train(model, trainloader, pretrain_criterion, train_criterion, optimizer, nu
 
 
 if __name__ == "__main__":
+    torch.autograd.set_detect_anomaly(True)
     audio, sr = torchaudio.load("guitar.wav")
+    audio = audio[:, :8000]
     traindataset = GuitarStringDataset(audio.unsqueeze(0))
     traindataloader = DataLoader(traindataset, batch_size=1, shuffle=True)
 
-    model = DDSPEncoderDecoderModel(batch_size=1, C=8, D=3, n_filter_params=10, signal_length=64000, trainable=True)
+    model = DDSPEncoderDecoderModel(batch_size=1, C=1, D=3, n_filter_params=10, signal_length=8000, trainable=True)
     pretrain_criterion = PretrainLoss(0.1, 4)
-    train_criterion = torch.nn.MSELoss()
+    train_criterion = MultiSpectralLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     device = 'cpu'
 

@@ -219,7 +219,8 @@ def fdelay4(d, x):
 def fdelayltv(N, d, x):
     o = (N - 1.00001) / 2
     dmo = d - o
-    assert dmo > 0, "assumed nonnegative [d > (N-1)/2]"
+    assert dmo > 0, f"assumed nonnegative [d > (N-1)/2]，{d},{dmo}"
+
     id = int(dmo)
     fd = o + frac(dmo)
     sum = 0

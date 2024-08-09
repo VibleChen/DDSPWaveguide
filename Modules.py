@@ -5,7 +5,7 @@ import torch.nn as nn
 import torchaudio
 
 from Constant import Langrange_N
-from Delay import fdelayltv_batched, delay_batched
+from Delay import fdelayltv, delay
 from Filters import BridgeFilter
 
 
@@ -38,10 +38,10 @@ class StringSegment(ModelBlock):
         self.length = length
 
     def LeftGoingWaves(self, left, right, **kwargs):
-        return fdelayltv_batched(Langrange_N, self.length, left)
+        return fdelayltv(Langrange_N, self.length, left)
 
     def RightGoingWaves(self, left, right, **kwargs):
-        return fdelayltv_batched(Langrange_N, self.length, right)
+        return fdelayltv(Langrange_N, self.length, right)
 
 
 class _Chain:
@@ -56,15 +56,12 @@ class _Chain:
 
     def _start(self, left, right, **kwargs):
 
-        batch_size = left.shape[0]
-        ones = torch.ones(left.shape[0], dtype=torch.int64).to(left.device)
-
         for i in range(len(self.blocks)):
             left = self.blocks[len(self.blocks) - (i + 1)].LeftGoingWaves(left, right, **kwargs)
 
             if i < len(self.blocks) - 1:
-                left = delay_batched(ones, left)
-                right = delay_batched(ones, right)
+                left = delay(1, left)
+                right = delay(1, right)
 
             right = self.blocks[i].RightGoingWaves(left, right, **kwargs)
 
@@ -83,14 +80,14 @@ class _Chain:
         return right
 
     def _vibrate(self, left, right, **kwargs):
-        ones = torch.ones(left.shape[0], dtype=torch.int64).to(left.device)
+
         for i in range(len(self.instrument)):
             # 对于left是2，1，0的顺序
             left = self.instrument[len(self.instrument) - (i + 1)].LeftGoingWaves(left, right, **kwargs)
-            left = delay_batched(ones, left)
+            left = delay(1, left)
 
             # 对于right，是1，2，3的顺序
-            right = delay_batched(ones, right)
+            right = delay(1, right)
             right = self.instrument[i].RightGoingWaves(left, right, **kwargs)
 
         return left, right
@@ -108,9 +105,8 @@ class LeftTermination(ModelBlock):
         return left
 
     def RightGoingWaves(self, left, right, **kwargs):
-        ones = torch.ones(left.shape[0], dtype=torch.int64).to(left.device)
         left = self.LeftGoingWaves(left, right, **kwargs)
-        left = delay_batched(ones, left)
+        left = delay(1, left)
         left = self.ltermination_filter(left, **kwargs)
 
         right = self.block.RightGoingWaves(left, left, **kwargs)
@@ -125,13 +121,12 @@ class RightTermination(ModelBlock):
         self.block = block
 
     def LeftGoingWaves(self, left, right, **kwargs):
-        ones = torch.ones(left.shape[0], dtype=torch.int64).to(left.device)
         right = self.RightGoingWaves(left, right, **kwargs)
-        right = delay_batched(ones, right)
+        right = delay(1, right)
         right = self.rtermination_filter(right, **kwargs)
 
         left = self.block.LeftGoingWaves(right, right, **kwargs)
-        left = delay_batched(ones, left)
+        left = delay(1, left)
 
         return left
 
@@ -229,9 +224,8 @@ class GuitarNuts(ModelBlock):
         return left
 
     def RightGoingWaves(self, left, right, **kwargs):
-        ones = torch.ones(left.shape[0], dtype=torch.int64).to(left.device)
         left = self.LeftGoingWaves(left, right, **kwargs)
-        left = delay_batched(ones, left)
+        left = delay(1, left)
         if self.trainable:
             assert 'nuts_params' in kwargs, "Nuts params should be provided when trainable is True"
             b_coeff, a_coeff = kwargs['nuts_params']
@@ -259,9 +253,8 @@ class GuitarBridge(ModelBlock):
         self.block = Emply()
 
     def LeftGoingWaves(self, left, right, **kwargs):
-        ones = torch.ones(left.shape[0], dtype=torch.int64).to(left.device)
         right = self.RightGoingWaves(left, right, **kwargs)
-        right = delay_batched(ones, right)
+        right = delay(1, right)
         if self.trainable:
             assert 'bridge_params' in kwargs, "Bridge params should be provided when trainable is True"
             b_coeff, a_coeff = kwargs['bridge_params']
@@ -271,7 +264,7 @@ class GuitarBridge(ModelBlock):
         right = self.filter(right, a_coeff, b_coeff)
 
         left = self.block.LeftGoingWaves(right, right, **kwargs)
-        left = delay_batched(ones, left)
+        left = delay(1, left)
 
         return left
 

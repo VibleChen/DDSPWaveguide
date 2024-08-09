@@ -1,15 +1,16 @@
 import torch
 import torch.nn as nn
 
-from Constant import SR
+from Constant import SR,device
 from Core import get_filters_coeffs
 from Encoder import LatentEncoder
 from GuitarString import GuitarString
 
 
 def get_excitation(batch_size, signal_length):
-    excitation = torch.zeros((batch_size, signal_length), dtype=torch.float32)
-    excitation[:, 0] = 0.5
+    # excitation = torch.zeros((batch_size, signal_length), dtype=torch.float32)
+    excitation = torch.zeros((signal_length), dtype=torch.float32,device=device)
+    excitation[0] = 0.5
     return excitation
 
 
@@ -29,6 +30,6 @@ class DDSPEncoderDecoderModel(nn.Module):
                 filter_params)
             return self.decoder(length, pluckposition,
                                 excitation=self.excitation,
-                                bridge_params=(bridge_b_coeffs, bridge_a_coeffs),
-                                nuts_params=(nut_b_coeffs, nut_a_coeffs),
-                                dispersion_params=(dispersion_b_coeffs, dispersion_a_coeffs))
+                                bridge_params=(bridge_b_coeffs.squeeze(0), bridge_a_coeffs.squeeze(0)),
+                                nuts_params=(nut_b_coeffs.squeeze(0), nut_a_coeffs.squeeze(0)),
+                                dispersion_params=(dispersion_b_coeffs.squeeze(0), dispersion_a_coeffs.squeeze(0)))
