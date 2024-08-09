@@ -77,3 +77,14 @@ with{
             left_signal[i + 1], right_signal[i + 1] = chain._vibrate(left_signal[i + 1], right_signal[i + 1], **kwargs)
 
         return torch.sum(left_signal, dim=0), torch.sum(right_signal, dim=0)
+
+
+if __name__ =="__main__":
+
+
+    guitarstring = GuitarString(seconds = 2, trainable=False)
+    length = torch.tensor(10.5)
+    pluckposition = torch.tensor(0.5)
+    excitation = torch.zeros(2*SR)
+    output = guitarstring(length, pluckposition, excitation)
+

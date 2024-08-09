@@ -4,7 +4,7 @@ import torch.nn as nn
 import torchaudio
 
 from Constant import SR
-from Delay import delay_batched
+from Delay import delay_batched, delay
 
 
 def NonIdealFilter(signal):
@@ -39,10 +39,8 @@ class BridgeFilter(nn.Module):
 
     def forward(self, x, a_coeff=None, b_coeff=None):
         if not self.trainable:
-            batch_size = x.shape[0]
-            two = torch.ones(batch_size, dtype=torch.int64) * 2
-            h1_part = self.h1 * (x + delay_batched(two, x))
-            h0_part = self.h0 * delay_batched(torch.ones(batch_size, dtype=torch.int64), x)
+            h1_part = self.h1 * (x + delay(2, x))
+            h0_part = self.h0 * delay(1, x)
             return - self.rho * (h0_part + h1_part)
         else:
             assert a_coeff is not None and b_coeff is not None, "a_coeff and b_coeff should be provided when trainable is True"
